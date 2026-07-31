@@ -15,7 +15,7 @@
 const firebaseConfig = {
   apiKey: "SIZNING_API_KEYINGIZ",
   authDomain: "loyiha-nomi.firebaseapp.com",
-  databaseURL: "https://loyiha-nomi-default-rtdb.firebaseio.com",
+  databaseURL: "https://mockbaza-reyting-default-rtdb.firebaseio.com",
   projectId: "loyiha-nomi",
   storageBucket: "loyiha-nomi.appspot.com",
   messagingSenderId: "000000000000",
