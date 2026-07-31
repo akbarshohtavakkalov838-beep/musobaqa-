@@ -1,36 +1,54 @@
 /* ===========================================================
    data.js — umumiy ma'lumotlar (index.html va admin.html ikkalasi
    ham shu faylni ulaydi)
+
+   O'QUVCHILARNI SHU YERDA QO'SHASIZ / O'ZGARTIRASIZ:
+   Pastdagi NAMES ro'yxatiga o'quvchi ismini qo'shing yoki
+   olib tashlang (har biri qo'shtirnoq va vergul bilan).
    =========================================================== */
 
 const COLORS = ['#2563EB','#7c3aed','#db2777','#059669','#ea580c','#0891b2','#4f46e5','#c026d3','#16a34a','#e11d48'];
 
-const NAMES = ["Diyorbek Aliyev","Sarvinoz Karimova","Jasur Tursunov","Malika Yusupova","Otabek Rashidov",
-  "Nilufar Xolmatova","Sardor Nazarov","Gulnoza Ergasheva","Bekzod Sultonov","Madina Yoqubova",
-  "Sherzod Qodirov","Zarina Abdullayeva"];
+const NAMES = [
+  "Abdulboriy",
+  "Abdulaziz",
+  "Oyatillo",
+  "Muhammadali",
+  "Muhammadyaxyo",
+  "Muhammmadamir",
+  "Muhammadrizo",
+  "Malika",
+  "Muslima",
+  "Zulxumor",
+  "Biloldin",
+  "Nuriddin",
+  "Abdulloh",
+  "Ubaydullo",
+  "Mushtariy"
+];
 
 const TOTAL_DAYS = 30;
-const CUR_DAY = 16;          // hozirgi kun (demo uchun). Real loyihada bu kunni o'zingiz o'zgartirasiz.
+const CUR_DAY = 1;          // marafonning hozirgi kuni. Har kuni shu raqamni +1 qilib yangilaysiz.
 
-/* ---------- Demo ma'lumot yaratish (birinchi marta ochilganda) ---------- */
+/* ---------- Boshlang'ich ma'lumot: hammasi 0 ball, davomat yo'q ---------- */
 function seedData(){
   return NAMES.map((name,i)=>{
-    const attendance = Array.from({length:TOTAL_DAYS},(_,d)=> d < CUR_DAY ? (Math.random() > 0.22 ? 1 : 0) : 0);
-    const presentDays = attendance.reduce((a,b)=>a+b,0);
-    const points = presentDays * (6 + Math.floor(Math.random()*5)) + Math.floor(Math.random()*10);
-    return { id:i+1, name, points, attendance, color: COLORS[i % COLORS.length] };
+    const attendance = Array.from({length:TOTAL_DAYS},()=>0);
+    return { id:i+1, name, points:0, attendance, color: COLORS[i % COLORS.length] };
   });
 }
 
 /* ---------- localStorage bilan ishlash ---------- */
+const STORAGE_KEY = 'mb_students_v3';   // ismlar ro'yxati o'zgargani uchun yangi kalit — eski ma'lumot bilan aralashmaydi
+
 function loadData(){
-  const raw = localStorage.getItem('mb_demo_students');
+  const raw = localStorage.getItem(STORAGE_KEY);
   if(raw){ try{ return JSON.parse(raw); }catch(e){} }
   const seeded = seedData();
-  localStorage.setItem('mb_demo_students', JSON.stringify(seeded));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
   return seeded;
 }
-function saveData(d){ localStorage.setItem('mb_demo_students', JSON.stringify(d)); }
+function saveData(d){ localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
 
 /* ---------- Yordamchi funksiyalar ---------- */
 function initials(name){
