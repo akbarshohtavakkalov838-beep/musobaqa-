@@ -35,7 +35,20 @@
         <select id="daySelect" onchange="renderAdmin()"></select>
       </div>
     </div>
-    <div class="badge-note">Ballarni + / − tugmalari bilan o'zgartiring. Kvadrat tugma tanlangan kun uchun davomatni belgilaydi (yashil = keldi).</div>
+    <div class="add-student-box">
+      <input type="text" id="newStudentName" placeholder="Yangi o'quvchi ismi" onkeydown="if(event.key==='Enter')addNewStudent()">
+      <button class="btn-small" onclick="addNewStudent()">+ Qo'shish</button>
+    </div>
+
+    <div class="backup-box">
+      <button class="btn-outline" onclick="handleExport()">⬇ Zaxira yuklab olish</button>
+      <label class="btn-outline file-label">
+        ⬆ Zaxiradan tiklash
+        <input type="file" id="importFile" accept="application/json" onchange="handleImport(event)" style="display:none">
+      </label>
+    </div>
+
+    <div class="badge-note">Ballarni + / − tugmalari bilan o'zgartiring. Kvadrat tugma tanlangan kun uchun davomatni belgilaydi. 📅 tugmasi shu o'quvchining barcha 30 kunini ko'rsatadi — istalgan kunni bosib o'zgartirishingiz mumkin. 🗑 — o'quvchini o'chiradi.</div>
     <div id="adminList" class="list"></div>
     <p style="margin-top:18px"><a href="#" class="logout-link" onclick="logout();return false;">Chiqish</a></p>
   </div>
