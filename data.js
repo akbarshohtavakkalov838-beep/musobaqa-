@@ -26,7 +26,6 @@ const NAMES = [
   "Abdulloh",
   "Ubaydullo",
   "Mushtariy"
-  "Muhammmadsodiq"
 ];
 
 const TOTAL_DAYS = 30;
