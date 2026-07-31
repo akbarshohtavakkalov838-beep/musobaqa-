@@ -1,109 +1,141 @@
 /* ===========================================================
-   data.js — umumiy ma'lumotlar (index.html va admin.html ikkalasi
-   ham shu faylni ulaydi)
-
-   ESLATMA: Endi o'quvchi qo'shish/o'chirish ADMIN PANELDAN
-   qilinadi (kodni tahrirlashning hojati yo'q). Pastdagi NAMES
-   faqat birinchi marta sahifa ochilganda boshlang'ich ro'yxat
-   sifatida ishlatiladi.
+   board.js — index.html (reyting sahifasi) uchun
    =========================================================== */
 
-const COLORS = ['#2563EB','#7c3aed','#db2777','#059669','#ea580c','#0891b2','#4f46e5','#c026d3','#16a34a','#e11d48'];
+let students = loadData();
+let openRowId = null;   // qaysi qatorning kalendari ochiq turibdi
 
-const NAMES = [
-  "Abdulboriy",
-  "Abdulaziz",
-  "Oyatillo",
-  "Muhammadali",
-  "Muhammadyaxyo",
-  "Muhammmadamir",
-  "Muhammadrizo",
-  "Malika",
-  "Muslima",
-  "Zulxumor",
-  "Biloldin",
-  "Nuriddin",
-  "Abdulloh",
-  "Ubaydullo",
-  "Mushtariy"
-];
-
-const TOTAL_DAYS = 30;
-const CUR_DAY = 1;          // marafonning hozirgi kuni. Har kuni shu raqamni +1 qilib yangilaysiz.
-
-/* ---------- Boshlang'ich ma'lumot: hammasi 0 ball, davomat yo'q ---------- */
-function seedData(){
-  return NAMES.map((name,i)=>{
-    const attendance = Array.from({length:TOTAL_DAYS},()=>0);
-    return { id:i+1, name, points:0, attendance, color: COLORS[i % COLORS.length] };
-  });
+function attendanceCell(day, val){
+  if(day >= CUR_DAY) return `<div class="cal-cell future" title="${day+1}-kun">${day+1}</div>`;
+  if(val) return `<div class="cal-cell present" title="${day+1}-kun: keldi">${day+1}</div>`;
+  return `<div class="cal-cell absent" title="${day+1}-kun: kelmadi">${day+1}</div>`;
 }
 
-/* ---------- localStorage bilan ishlash ---------- */
-const STORAGE_KEY = 'mb_students_v3';
+function renderBoard(){
+  const rs = sortedStudents(students);
+  const top3 = rs.slice(0,3);
+  const medalIcon = ['🏆','🥈','🥉'];
 
-function loadData(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw){ try{ return JSON.parse(raw); }catch(e){} }
-  const seeded = seedData();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
-  return seeded;
-}
-function saveData(d){ localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+  const podiumEl = document.getElementById('podium');
+  podiumEl.innerHTML = top3.map((s,i)=>`
+    <div class="p-card rank-${i+1}">
+      ${i===0?'<div class="crown">👑</div>':''}
+      <div class="p-avatar ${i===0?'energy-wrap':''}" style="background:${s.color}">
+        ${i===0?`
+          <div class="energy-ring"></div>
+          <span class="spark" style="top:-16px;left:50%;transform:translateX(-50%);animation-delay:0s">⚡</span>
+          <span class="spark" style="right:-16px;top:50%;transform:translateY(-50%);animation-delay:.5s">⚡</span>
+          <span class="spark" style="bottom:-16px;left:50%;transform:translateX(-50%);animation-delay:1s">⚡</span>
+          <span class="spark" style="left:-16px;top:50%;transform:translateY(-50%);animation-delay:1.5s">⚡</span>
+        `:''}
+        ${initials(s.name)}
+        <div class="rank-badge">${medalIcon[i]}</div>
+      </div>
+      <div class="p-name">${s.name}</div>
+      <div class="p-points">${s.points} <span>ball</span></div>
+    </div>
+  `).join('');
 
-/* ---------- O'quvchi qo'shish / o'chirish ---------- */
-function addStudent(students, name){
-  const cleanName = name.trim();
-  if(!cleanName) return students;
-  const id = students.length ? Math.max(...students.map(s=>s.id)) + 1 : 1;
-  const color = COLORS[(id-1) % COLORS.length];
-  const attendance = Array.from({length:TOTAL_DAYS},()=>0);
-  students.push({ id, name: cleanName, points:0, attendance, color });
-  saveData(students);
-  return students;
-}
-function removeStudent(students, id){
-  const idx = students.findIndex(s=>s.id===id);
-  if(idx > -1) students.splice(idx,1);
-  saveData(students);
-  return students;
+  const listEl = document.getElementById('list');
+  listEl.innerHTML = rs.map((s,i)=>{
+    const presentDays = s.attendance.slice(0,CUR_DAY).reduce((a,b)=>a+b,0);
+    const pct = CUR_DAY > 0 ? Math.round(presentDays / CUR_DAY * 100) : 0;
+    const dots = s.attendance.slice(0,CUR_DAY).map(v=>`<div class="dot ${v?'on':''}"></div>`).join('');
+    const isOpen = openRowId === s.id;
+    return `
+    <div class="row-wrap">
+      <div class="row" onclick="toggleCal(${s.id})">
+        <div class="r-rank">${i+1}</div>
+        <div class="r-avatar" style="background:${s.color}">${initials(s.name)}</div>
+        <div class="r-name"><b>${s.name}</b><span>${presentDays}/${CUR_DAY} kun qatnashdi</span></div>
+        <div class="r-dots">${dots}</div>
+        <div class="r-att">${pct}%</div>
+        <div class="r-points">${s.points} ball</div>
+        <div class="cal-btn ${isOpen?'open':''}">📅</div>
+      </div>
+      <div class="cal-panel ${isOpen?'open':''}">
+        <div class="cal-grid">
+          ${s.attendance.map((v,d)=>attendanceCell(d,v)).join('')}
+        </div>
+        <div class="cal-legend">
+          <span><i style="background:var(--green)"></i>Keldi</span>
+          <span><i style="background:#fca5a5"></i>Kelmadi</span>
+          <span><i style="background:#e2e8f0"></i>Hali kelmagan kun</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const off = 195 - (195 * CUR_DAY/TOTAL_DAYS);
+  document.getElementById('dayRingProgress').style.strokeDashoffset = off;
+  document.getElementById('curDay').textContent = CUR_DAY;
+
+  if(top3.length && top3[0].points > 0) fireConfettiOnce();
 }
 
-/* ---------- Zaxira olish (JSON fayl yuklab olish) ---------- */
-function exportData(students){
-  const blob = new Blob([JSON.stringify(students,null,2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const today = new Date().toISOString().slice(0,10);
-  a.href = url;
-  a.download = `mockbaza-zaxira-${today}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+function toggleCal(id){
+  openRowId = (openRowId === id) ? null : id;
+  renderBoard();
 }
 
-/* ---------- Zaxiradan tiklash (JSON fayl yuklash) ---------- */
-function importDataFromFile(file, callback){
-  const reader = new FileReader();
-  reader.onload = e => {
-    try{
-      const data = JSON.parse(e.target.result);
-      if(!Array.isArray(data)) throw new Error('bad format');
-      saveData(data);
-      callback(data, null);
-    }catch(err){
-      callback(null, "Fayl formati noto'g'ri. Faqat shu tizimdan yuklab olingan zaxira faylini tanlang.");
+/* ---------- 1-o'rin uchun konfetti (har sessiyada bir marta) ---------- */
+function fireConfettiOnce(){
+  if(sessionStorage.getItem('mb_confetti_shown')) return;
+  sessionStorage.setItem('mb_confetti_shown','1');
+  fireConfetti();
+}
+
+function fireConfetti(){
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.inset = '0';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '9999';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const colors = ['#2563EB','#f59e0b','#16a34a','#db2777','#7c3aed','#3b82f6'];
+
+  const particles = Array.from({length:140},() => ({
+    x: canvas.width/2 + (Math.random()-0.5) * Math.min(600, canvas.width*0.8),
+    y: -20 - Math.random()*100,
+    vx: (Math.random()-0.5) * 6,
+    vy: Math.random()*2 + 2,
+    size: Math.random()*6 + 5,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    rotation: Math.random()*360,
+    vr: (Math.random()-0.5) * 12
+  }));
+
+  let frame = 0;
+  function tick(){
+    frame++;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.vy += 0.12;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.6);
+      ctx.restore();
+    });
+    if(frame < 210){
+      requestAnimationFrame(tick);
+    } else {
+      canvas.remove();
     }
-  };
-  reader.onerror = () => callback(null, "Faylni o'qib bo'lmadi.");
-  reader.readAsText(file);
+  }
+  tick();
 }
 
-/* ---------- Yordamchi funksiyalar ---------- */
-function initials(name){
-  return name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
-}
-function sortedStudents(students){
-  return [...students].sort((a,b)=>b.points-a.points);
-}
+window.addEventListener('resize', () => {
+  const c = document.querySelector('canvas');
+  if(c){ c.width = window.innerWidth; c.height = window.innerHeight; }
+});
+
+renderBoard();
