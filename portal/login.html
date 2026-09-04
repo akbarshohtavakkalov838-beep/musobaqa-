@@ -1,1 +1,67 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kirish – MockBaza</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+<div class="auth-box">
+  <h1>👋 Xush kelibsiz</h1>
+  <div id="msg"></div>
+  <form id="loginForm">
+    <label>Ism</label>
+    <input type="text" id="username" required placeholder="Masalan: Abdulloh">
+    <label>Parol</label>
+    <input type="text" id="password" required placeholder="Masalan: Abdulloh20">
+    <button type="submit" class="btn" style="width:100%">Kirish</button>
+  </form>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const msg = document.getElementById('msg');
+function showMsg(text, type) { msg.innerHTML = `<div class="msg ${type}">${text}</div>`; }
+
+function usernameToEmail(username) {
+  const clean = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return clean + "@mockbaza.local";
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  try {
+    const cred = await signInWithEmailAndPassword(auth, usernameToEmail(username), password);
+    const snap = await getDoc(doc(db, "users", cred.user.uid));
+    const role = snap.exists() ? snap.data().role : "student";
+    window.location.href = role === "admin" ? "admin-panel.html" : "dashboard.html";
+  } catch (err) {
+    showMsg(errUz(err.code), "error");
+  }
+});
+
+function errUz(code) {
+  const map = {
+    "auth/invalid-credential": "Ism yoki parol noto'g'ri.",
+    "auth/user-not-found": "Bunday o'quvchi topilmadi.",
+    "auth/wrong-password": "Parol noto'g'ri.",
+    "auth/invalid-email": "Ism noto'g'ri kiritildi."
+  };
+  return map[code] || "Xatolik yuz berdi: " + code;
+}
+</script>
+</body>
+</html>
