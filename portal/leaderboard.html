@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reyting – MockBaza</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="dashboard.html" class="logo">
+    <svg class="logo-icon" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="#7C5CFC"/><text x="18" y="25" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="15" fill="white">MB</text></svg>
+    <span class="logo-text">Mock<span>Baza</span></span>
+  </a>
+  <div class="nav-right">
+    <a href="dashboard.html" class="nav-link">🏠 Profilim</a>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="welcome">
+    <span class="emoji">🏆</span>
+    <h1>Umumiy reyting</h1>
+    <p>Barcha o'quvchilarning ballari real vaqtda yangilanib turadi.</p>
+  </div>
+  <div id="board" class="panel"><p class="muted">Yuklanmoqda...</p></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const q = query(collection(db, "users"), where("role", "==", "student"), orderBy("totalPoints", "desc"));
+onSnapshot(q, (snap) => {
+  const box = document.getElementById('board');
+  if (snap.empty) { box.innerHTML = '<p class="muted">Hozircha o\'quvchi yo\'q.</p>'; return; }
+  let i = 0;
+  let html = "";
+  snap.forEach(d => {
+    i++;
+    const u = d.data();
+    const medal = i === 1 ? '🥇' : i === 2 ? '🥈' : i === 3 ? '🥉' : '#' + i;
+    const badgeClass = i === 1 ? 'gold' : i === 2 ? 'silver' : i === 3 ? 'bronze' : 'pts';
+    html += `<div class="list-item">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span class="badge ${badgeClass}" style="min-width:36px;text-align:center">${medal}</span>
+        <div class="name">${u.name}</div>
+      </div>
+      <span class="badge pts">${u.totalPoints || 0} ball</span>
+    </div>`;
+  });
+  box.innerHTML = html;
+});
+</script>
+</body>
+</html>

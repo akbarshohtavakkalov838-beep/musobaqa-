@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profilim – MockBaza</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="dashboard.html" class="logo">
+    <svg class="logo-icon" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="#7C5CFC"/><text x="18" y="25" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="15" fill="white">MB</text></svg>
+    <span class="logo-text">Mock<span>Baza</span></span>
+  </a>
+  <div class="nav-right">
+    <a href="leaderboard.html" class="nav-link">🏆 Reyting</a>
+    <span class="user-badge" id="userBadge">👤 ...</span>
+    <a href="#" class="logout-btn" id="logoutBtn">Chiqish</a>
+  </div>
+</nav>
+
+<main class="main">
+  <div class="welcome">
+    <span class="emoji">🎯</span>
+    <h1 id="welcomeName">Xush kelibsiz!</h1>
+    <p>Testlarni yeching, ball to'plang, reytingda ko'tariling.</p>
+  </div>
+
+  <div class="cards">
+    <div class="stat-card">
+      <div class="icon">🏆</div>
+      <div class="label">Jami ball</div>
+      <div class="value" id="totalPoints">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">📝</div>
+      <div class="label">Ishlangan testlar</div>
+      <div class="value" id="testsDone">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">📊</div>
+      <div class="label">Reytingdagi o'rin</div>
+      <div class="value" id="myRank">–</div>
+    </div>
+  </div>
+
+  <div class="section-title">📝 Mavjud testlar</div>
+  <div id="testsList" class="panel"><p class="muted">Yuklanmoqda...</p></div>
+
+  <div class="section-title">📋 Natijalarim</div>
+  <div id="resultsList" class="panel"><p class="muted">Hali test ishlamagansiz.</p></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, collection, query, where, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); signOut(auth); });
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) { window.location.href = "login.html"; return; }
+  const uid = user.uid;
+
+  // Real-time profil (ball) kuzatuvi
+  onSnapshot(doc(db, "users", uid), (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    document.getElementById('userBadge').textContent = "👤 " + data.name;
+    document.getElementById('welcomeName').textContent = "Xush kelibsiz, " + data.name + "!";
+    document.getElementById('totalPoints').textContent = data.totalPoints || 0;
+    if (data.role === "admin") {
+      document.getElementById('userBadge').insertAdjacentHTML('afterend', '<a href="admin-panel.html" class="nav-link">⚙️ Admin</a>');
+    }
+    updateRank(uid);
+  });
+
+  // Mavjud testlar ro'yxati
+  onSnapshot(collection(db, "tests"), async (snap) => {
+    const box = document.getElementById('testsList');
+    if (snap.empty) { box.innerHTML = '<p class="muted">Hozircha test yuklanmagan.</p>'; return; }
+    const resultsSnap = await getDocs(query(collection(db, "results"), where("uid", "==", uid)));
+    const doneIds = new Set(resultsSnap.docs.map(d => d.data().testId));
+    let html = "";
+    snap.forEach(t => {
+      const d = t.data();
+      const done = doneIds.has(t.id);
+      html += `<div class="list-item">
+        <div><div class="name">${d.title}</div><div class="meta">${d.subject || ''} · ${d.totalQuestions} savol</div></div>
+        ${done
+          ? '<span class="badge pts">✅ Ishlangan</span>'
+          : `<a href="test.html?id=${t.id}" class="btn small">Boshlash</a>`}
+      </div>`;
+    });
+    box.innerHTML = html;
+  });
+
+  // Natijalarim
+  onSnapshot(query(collection(db, "results"), where("uid", "==", uid)), (snap) => {
+    const box = document.getElementById('resultsList');
+    document.getElementById('testsDone').textContent = snap.size;
+    if (snap.empty) { box.innerHTML = '<p class="muted">Hali test ishlamagansiz.</p>'; return; }
+    let rows = [];
+    snap.forEach(r => rows.push(r.data()));
+    rows.sort((a,b) => (b.submittedAt?.seconds||0) - (a.submittedAt?.seconds||0));
+    box.innerHTML = rows.map(r => `<div class="list-item">
+      <div><div class="name">${r.testTitle}</div><div class="meta">${r.correct}/${r.total} to'g'ri</div></div>
+      <span class="badge pts">+${r.points} ball</span>
+    </div>`).join("");
+  });
+});
+
+async function updateRank(uid) {
+  const snap = await getDocs(query(collection(db, "users"), orderBy("totalPoints", "desc")));
+  let rank = 1, found = 0;
+  snap.forEach((d, i) => { if (d.id === uid) found = i + 1; });
+  document.getElementById('myRank').textContent = found ? "#" + found : "–";
+}
+</script>
+</body>
+</html>
