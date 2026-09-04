@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin panel – MockBaza</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="dashboard.html" class="logo">
+    <svg class="logo-icon" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="#7C5CFC"/><text x="18" y="25" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="15" fill="white">MB</text></svg>
+    <span class="logo-text">Mock<span>Baza</span> <span style="color:#6b7280;font-size:13px">Admin</span></span>
+  </a>
+  <div class="nav-right">
+    <a href="dashboard.html" class="nav-link">👤 Profilim</a>
+    <a href="leaderboard.html" class="nav-link">🏆 Reyting</a>
+    <a href="#" class="logout-btn" id="logoutBtn">Chiqish</a>
+  </div>
+</nav>
+
+<main class="main wide">
+  <div class="welcome">
+    <span class="emoji">⚙️</span>
+    <h1>Admin panel</h1>
+    <p>Test yuklash, o'quvchilarni boshqarish va ballarni sozlash.</p>
+  </div>
+
+  <div class="admin-tabs">
+    <div class="admin-tab active" data-tab="upload">📝 Test yuklash</div>
+    <div class="admin-tab" data-tab="students">👥 O'quvchilar</div>
+    <div class="admin-tab" data-tab="tests">📚 Testlar ro'yxati</div>
+  </div>
+
+  <!-- TEST YUKLASH -->
+  <div class="tab-content active" id="tab-upload">
+    <div class="panel">
+      <label>Test nomi</label>
+      <input type="text" id="tTitle" placeholder="Masalan: Present Simple - Test 1">
+      <label>Fan / mavzu</label>
+      <input type="text" id="tSubject" placeholder="Masalan: Grammar">
+
+      <div class="section-title" style="margin-top:20px">Savollar</div>
+      <div id="qBuilder"></div>
+      <button class="btn small" id="addQBtn" type="button">+ Savol qo'shish</button>
+
+      <div class="section-title">Ball jadvali (necha to'g'ri javobga necha ball)</div>
+      <p class="muted" style="margin-bottom:10px">Masalan: 30 savoldan 28-29 to'g'ri → 10 ball, 26-27 to'g'ri → 5 ball</p>
+      <div id="bandBuilder"></div>
+      <button class="btn small" id="addBandBtn" type="button">+ Qator qo'shish</button>
+
+      <div class="mt">
+        <button class="btn" id="saveTestBtn">💾 Testni saqlash va e'lon qilish</button>
+      </div>
+      <div id="uploadMsg"></div>
+    </div>
+  </div>
+
+  <!-- OQUVCHILAR -->
+  <div class="tab-content" id="tab-students">
+    <div class="panel">
+      <div class="section-title" style="margin-top:0">Bitta o'quvchi qo'shish</div>
+      <label>Ism</label>
+      <input type="text" id="sName" placeholder="Masalan: Abdulloh">
+      <p class="muted" style="margin-top:-6px;margin-bottom:12px">Parol avtomatik: <b id="sPasswordPreview">–</b> (ismdan keyin 20). Xohlasangiz o'zgartiring.</p>
+      <label>Parol</label>
+      <input type="text" id="sPassword" placeholder="Avtomatik to'ldiriladi">
+      <button class="btn" id="addStudentBtn">➕ O'quvchi qo'shish</button>
+      <div id="addStudentMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title" style="margin-top:0">Ko'p o'quvchini birdan qo'shish</div>
+      <p class="muted" style="margin-bottom:10px">Har bir qatorga bitta ism yozing. Har birining paroli avtomatik <b>Ism+20</b> bo'ladi (masalan Abdulloh → Abdulloh20). Bir xil ism ikki marta bo'lsa, ikkinchisi avtomatik "Ism2" qilib qo'shiladi.</p>
+      <textarea id="bulkNames" rows="10" placeholder="Har qatorga bitta ism">Muhammadsoddiq
+Abdulboriy
+Muslima
+Muhammadrizo
+Muhammadyaxyo
+Oyatillo
+Malika
+Muhammadali
+Nuriddin
+Abdulaziz
+Abdulloh
+Ixlosbek
+Rasuljon
+Abdulloh</textarea>
+      <button class="btn" id="bulkAddBtn">➕ Ro'yxatdagi hammasini qo'shish</button>
+      <div id="bulkMsg" class="mt"></div>
+    </div>
+
+    <div class="section-title">O'quvchilar ro'yxati</div>
+    <div id="studentsList" class="panel"><p class="muted">Yuklanmoqda...</p></div>
+  </div>
+
+  <!-- TESTLAR ROYXATI -->
+  <div class="tab-content" id="tab-tests">
+    <div id="testsAdminList" class="panel"><p class="muted">Yuklanmoqda...</p></div>
+  </div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, updateProfile, signOut as signOutSecondary } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, onSnapshot, query, orderBy, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); signOut(auth); });
+
+// --- Tabs ---
+document.querySelectorAll('.admin-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// --- Admin guard ---
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = "login.html"; return; }
+  const snap = await getDoc(doc(db, "users", user.uid));
+  if (!snap.exists() || snap.data().role !== "admin") {
+    alert("Sizda admin panelga kirish huquqi yo'q.");
+    window.location.href = "dashboard.html";
+    return;
+  }
+  initStudents();
+  initTestsList();
+});
+
+// ================= TEST BUILDER =================
+let qCount = 0;
+function addQuestion() {
+  qCount++;
+  const id = qCount;
+  const div = document.createElement('div');
+  div.className = 'q-builder-item';
+  div.dataset.id = id;
+  div.innerHTML = `
+    <button type="button" class="remove-q" onclick="this.parentElement.remove()">×</button>
+    <label>Savol matni</label>
+    <input type="text" class="q-text" placeholder="Savol matnini yozing">
+    <label>Variantlar (to'g'ri javobni belgilang)</label>
+    ${[0,1,2,3].map(i => `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <input type="radio" name="correct${id}" value="${i}" ${i===0?'checked':''} style="width:auto;margin:0">
+        <input type="text" class="q-opt" placeholder="Variant ${i+1}" style="margin:0">
+      </div>`).join("")}
+  `;
+  document.getElementById('qBuilder').appendChild(div);
+}
+document.getElementById('addQBtn').addEventListener('click', addQuestion);
+
+function addBandRow(min="", max="", pts="") {
+  const div = document.createElement('div');
+  div.className = 'band-row';
+  div.innerHTML = `
+    <input type="number" class="band-min" placeholder="Min to'g'ri" value="${min}">
+    <input type="number" class="band-max" placeholder="Max to'g'ri" value="${max}">
+    <input type="number" class="band-pts" placeholder="Ball" value="${pts}">
+    <button type="button" class="btn small danger" onclick="this.parentElement.remove()">×</button>
+  `;
+  document.getElementById('bandBuilder').appendChild(div);
+}
+document.getElementById('addBandBtn').addEventListener('click', () => addBandRow());
+
+// Default namuna: birinchi marta ochilganda
+addQuestion();
+addBandRow(29, 30, 10);
+addBandRow(26, 28, 5);
+addBandRow(0, 25, 0);
+
+document.getElementById('saveTestBtn').addEventListener('click', async () => {
+  const title = document.getElementById('tTitle').value.trim();
+  const subject = document.getElementById('tSubject').value.trim();
+  const msgBox = document.getElementById('uploadMsg');
+
+  const questions = [];
+  document.querySelectorAll('#qBuilder .q-builder-item').forEach(item => {
+    const text = item.querySelector('.q-text').value.trim();
+    const opts = [...item.querySelectorAll('.q-opt')].map(i => i.value.trim());
+    const correctRadio = item.querySelector('input[type=radio]:checked');
+    const correct = correctRadio ? parseInt(correctRadio.value) : 0;
+    if (text && opts.every(o => o)) questions.push({ text, options: opts, correct });
+  });
+
+  const scoreBands = [];
+  document.querySelectorAll('#bandBuilder .band-row').forEach(row => {
+    const min = parseInt(row.querySelector('.band-min').value);
+    const max = parseInt(row.querySelector('.band-max').value);
+    const pts = parseInt(row.querySelector('.band-pts').value);
+    if (!isNaN(min) && !isNaN(max) && !isNaN(pts)) scoreBands.push({ min, max, points: pts });
+  });
+
+  if (!title || questions.length === 0 || scoreBands.length === 0) {
+    msgBox.innerHTML = '<div class="msg error">Test nomi, kamida bitta savol va ball jadvali kerak.</div>';
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "tests"), {
+      title, subject, totalQuestions: questions.length,
+      questions, scoreBands, active: true, createdAt: serverTimestamp()
+    });
+    msgBox.innerHTML = '<div class="msg success">✅ Test muvaffaqiyatli yuklandi!</div>';
+    document.getElementById('tTitle').value = "";
+    document.getElementById('tSubject').value = "";
+    document.getElementById('qBuilder').innerHTML = "";
+    qCount = 0; addQuestion();
+    document.getElementById('bandBuilder').innerHTML = "";
+    addBandRow(29,30,10); addBandRow(26,28,5); addBandRow(0,25,0);
+  } catch (err) {
+    msgBox.innerHTML = `<div class="msg error">Xatolik: ${err.message}</div>`;
+  }
+});
+
+// ================= STUDENTS =================
+function initStudents() {
+  onSnapshot(query(collection(db, "users"), orderBy("totalPoints", "desc")), (snap) => {
+    const box = document.getElementById('studentsList');
+    if (snap.empty) { box.innerHTML = '<p class="muted">Hozircha o\'quvchi yo\'q.</p>'; return; }
+    let html = "";
+    snap.forEach(d => {
+      const u = d.data();
+      if (u.role === "admin") return;
+      html += `<div class="list-item">
+        <div><div class="name">${u.name}</div><div class="meta">Login: ${u.username || u.email || '–'}</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge pts">${u.totalPoints || 0} ball</span>
+          <button class="btn small" onclick="adjustPoints('${d.id}', 1)">+ ball</button>
+          <button class="btn small gray" onclick="adjustPoints('${d.id}', -1)">− ball</button>
+          <button class="btn small danger" onclick="removeStudent('${d.id}')">O'chirish</button>
+        </div>
+      </div>`;
+    });
+    box.innerHTML = html || '<p class="muted">Hozircha o\'quvchi yo\'q.</p>';
+  });
+}
+
+window.adjustPoints = async (uid, direction) => {
+  const amountStr = prompt(direction > 0 ? "Necha ball qo'shamiz?" : "Necha ball ayiramiz?", "5");
+  const amount = parseInt(amountStr);
+  if (isNaN(amount)) return;
+  await updateDoc(doc(db, "users", uid), { totalPoints: increment(direction * amount) });
+};
+
+window.removeStudent = async (uid) => {
+  if (!confirm("O'quvchi ma'lumotlari (profil, ballar) o'chirilsinmi? Bu akkauntni butunlay o'chirmaydi, faqat profilini o'chiradi.")) return;
+  await deleteDoc(doc(db, "users", uid));
+};
+
+// Ism -> Firebase uchun pseudo-email (Firebase Auth email talab qiladi, lekin o'quvchi buni ko'rmaydi)
+function usernameToEmail(username) {
+  const clean = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return clean + "@mockbaza.local";
+}
+
+function defaultPassword(name) {
+  return name.trim() + "20";
+}
+
+// Bitta o'quvchini Firebase'da yaratadi (ikkinchi App orqali, admin sessiyasi uzilmaydi)
+async function createStudentAccount(displayName, username, password) {
+  const email = usernameToEmail(username);
+  const secondaryApp = initializeApp(firebaseConfig, "Secondary-" + Date.now() + Math.random());
+  const secondaryAuth = getAuth(secondaryApp);
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+  await updateProfile(cred.user, { displayName });
+  await setDoc(doc(db, "users", cred.user.uid), {
+    name: displayName, username, role: "student", totalPoints: 0, createdAt: serverTimestamp()
+  });
+  await signOutSecondary(secondaryAuth);
+}
+
+document.getElementById('sName').addEventListener('input', (e) => {
+  const preview = defaultPassword(e.target.value || "Ism");
+  document.getElementById('sPasswordPreview').textContent = preview;
+  document.getElementById('sPassword').value = e.target.value ? preview : "";
+});
+
+document.getElementById('addStudentBtn').addEventListener('click', async () => {
+  const name = document.getElementById('sName').value.trim();
+  const password = document.getElementById('sPassword').value.trim() || defaultPassword(name);
+  const msgBox = document.getElementById('addStudentMsg');
+  if (!name || password.length < 6) {
+    msgBox.innerHTML = '<div class="msg error">Ism kiriting (parol avtomatik kamida 6 belgi bo\'lishi kerak).</div>';
+    return;
+  }
+  try {
+    await createStudentAccount(name, name, password);
+    msgBox.innerHTML = `<div class="msg success">✅ Qo'shildi! Login: <b>${name}</b>, parol: <b>${password}</b></div>`;
+    document.getElementById('sName').value = "";
+    document.getElementById('sPassword').value = "";
+    document.getElementById('sPasswordPreview').textContent = "–";
+  } catch (err) {
+    const map = {
+      "auth/email-already-in-use": "Bu ism bilan o'quvchi allaqachon mavjud.",
+      "auth/weak-password": "Parol juda oddiy."
+    };
+    msgBox.innerHTML = `<div class="msg error">${map[err.code] || err.message}</div>`;
+  }
+});
+
+document.getElementById('bulkAddBtn').addEventListener('click', async () => {
+  const raw = document.getElementById('bulkNames').value;
+  const names = raw.split('\n').map(n => n.trim()).filter(Boolean);
+  const msgBox = document.getElementById('bulkMsg');
+  if (names.length === 0) { msgBox.innerHTML = '<div class="msg error">Kamida bitta ism kiriting.</div>'; return; }
+
+  msgBox.innerHTML = '<div class="msg info">Qo\'shilmoqda, kuting...</div>';
+  const usedInBatch = {};
+  const log = [];
+
+  for (const rawName of names) {
+    let username = rawName;
+    // Shu partiyada bir xil ism bo'lsa, avtomatik 2, 3... qo'shiladi (Abdulloh, Abdulloh2, ...)
+    if (usedInBatch[rawName.toLowerCase()] !== undefined) {
+      usedInBatch[rawName.toLowerCase()]++;
+      username = rawName + usedInBatch[rawName.toLowerCase()];
+    } else {
+      usedInBatch[rawName.toLowerCase()] = 1;
+    }
+    const password = defaultPassword(username);
+    try {
+      await createStudentAccount(rawName, username, password);
+      log.push(`<div class="msg success">✅ <b>${username}</b> — parol: <b>${password}</b></div>`);
+    } catch (err) {
+      if (err.code === "auth/email-already-in-use") {
+        log.push(`<div class="msg error">⚠️ <b>${username}</b> — bu login allaqachon mavjud, o'tkazib yuborildi.</div>`);
+      } else {
+        log.push(`<div class="msg error">❌ <b>${username}</b> — xatolik: ${err.message}</div>`);
+      }
+    }
+  }
+  msgBox.innerHTML = log.join("");
+});
+
+// ================= TESTS LIST =================
+function initTestsList() {
+  onSnapshot(query(collection(db, "tests"), orderBy("createdAt", "desc")), (snap) => {
+    const box = document.getElementById('testsAdminList');
+    if (snap.empty) { box.innerHTML = '<p class="muted">Hozircha test yuklanmagan.</p>'; return; }
+    let html = "";
+    snap.forEach(t => {
+      const d = t.data();
+      html += `<div class="list-item">
+        <div><div class="name">${d.title}</div><div class="meta">${d.subject || ''} · ${d.totalQuestions} savol</div></div>
+        <button class="btn small danger" onclick="removeTest('${t.id}')">O'chirish</button>
+      </div>`;
+    });
+    box.innerHTML = html;
+  });
+}
+
+window.removeTest = async (testId) => {
+  if (!confirm("Bu testni o'chirasizmi? O'quvchilarning shu test bo'yicha natijalari saqlanib qoladi.")) return;
+  await deleteDoc(doc(db, "tests", testId));
+};
+</script>
+</body>
+</html>
