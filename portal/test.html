@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test – MockBaza</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="dashboard.html" class="logo">
+    <svg class="logo-icon" viewBox="0 0 36 36" fill="none"><rect width="36" height="36" rx="10" fill="#7C5CFC"/><text x="18" y="25" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="15" fill="white">MB</text></svg>
+    <span class="logo-text">Mock<span>Baza</span></span>
+  </a>
+  <div class="nav-right"><a href="dashboard.html" class="nav-link">← Profilga qaytish</a></div>
+</nav>
+
+<main class="main">
+  <div class="welcome">
+    <h1 id="testTitle">Yuklanmoqda...</h1>
+    <p id="testSubject" class="muted"></p>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar" style="width:0%"></div></div>
+    <p class="muted" id="progressText"></p>
+  </div>
+
+  <div id="quizArea"></div>
+
+  <div id="submitArea" class="center mt hidden">
+    <button class="btn" id="submitBtn">✅ Testni yakunlash</button>
+  </div>
+
+  <div id="resultArea" class="hidden"></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const params = new URLSearchParams(window.location.search);
+const testId = params.get("id");
+let currentUser = null;
+let testData = null;
+const answers = {};
+
+if (!testId) {
+  document.getElementById('testTitle').textContent = "Test topilmadi";
+}
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = "login.html"; return; }
+  currentUser = user;
+  if (!testId) return;
+
+  // Avval shu foydalanuvchi bu testni ishlaganmi tekshiramiz
+  const resultRef = doc(db, "results", `${user.uid}_${testId}`);
+  const existing = await getDoc(resultRef);
+  if (existing.exists()) {
+    showAlreadyDone(existing.data());
+    return;
+  }
+
+  const testSnap = await getDoc(doc(db, "tests", testId));
+  if (!testSnap.exists()) { document.getElementById('testTitle').textContent = "Test topilmadi"; return; }
+  testData = testSnap.data();
+  renderTest();
+});
+
+function showAlreadyDone(r) {
+  document.getElementById('testTitle').textContent = r.testTitle;
+  document.getElementById('quizArea').innerHTML = "";
+  document.getElementById('submitArea').classList.add('hidden');
+  document.getElementById('resultArea').classList.remove('hidden');
+  document.getElementById('resultArea').innerHTML = `
+    <div class="panel center">
+      <h2>Siz bu testni allaqachon ishlagansiz</h2>
+      <p class="mt">To'g'ri javoblar: <b>${r.correct}/${r.total}</b></p>
+      <p>Olingan ball: <b>${r.points}</b></p>
+      <a href="dashboard.html" class="btn mt">Profilga qaytish</a>
+    </div>`;
+}
+
+function renderTest() {
+  document.getElementById('testTitle').textContent = testData.title;
+  document.getElementById('testSubject').textContent = (testData.subject || "") + " · " + testData.totalQuestions + " ta savol";
+  const box = document.getElementById('quizArea');
+  let html = "";
+  testData.questions.forEach((q, qi) => {
+    html += `<div class="question-block" data-qi="${qi}">
+      <div class="q-text">${qi + 1}. ${q.text}</div>
+      ${q.options.map((opt, oi) => `
+        <label class="option-row" data-oi="${oi}">
+          <input type="radio" name="q${qi}" value="${oi}">
+          <span>${opt}</span>
+        </label>`).join("")}
+    </div>`;
+  });
+  box.innerHTML = html;
+
+  box.querySelectorAll('input[type=radio]').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      const qi = e.target.name.replace('q', '');
+      answers[qi] = parseInt(e.target.value);
+      updateProgress();
+    });
+  });
+
+  document.getElementById('submitArea').classList.remove('hidden');
+  document.getElementById('submitBtn').addEventListener('click', submitTest);
+  updateProgress();
+}
+
+function updateProgress() {
+  const total = testData.totalQuestions;
+  const answered = Object.keys(answers).length;
+  document.getElementById('progressBar').style.width = Math.round((answered/total)*100) + "%";
+  document.getElementById('progressText').textContent = `${answered}/${total} savolga javob berildi`;
+}
+
+function pointsForScore(correct) {
+  const bands = testData.scoreBands || [];
+  for (const b of bands) {
+    if (correct >= b.min && correct <= b.max) return b.points;
+  }
+  return 0;
+}
+
+async function submitTest() {
+  const total = testData.totalQuestions;
+  const answered = Object.keys(answers).length;
+  if (answered < total) {
+    if (!confirm(`Siz ${total - answered} ta savolga javob bermadingiz. Baribir yakunlanadimi?`)) return;
+  }
+
+  let correct = 0;
+  testData.questions.forEach((q, qi) => {
+    const given = answers[qi];
+    const block = document.querySelector(`.question-block[data-qi="${qi}"]`);
+    const correctRow = block.querySelector(`.option-row[data-oi="${q.correct}"]`);
+    if (correctRow) correctRow.classList.add('correct');
+    if (given === q.correct) {
+      correct++;
+    } else if (given !== undefined) {
+      const wrongRow = block.querySelector(`.option-row[data-oi="${given}"]`);
+      if (wrongRow) wrongRow.classList.add('wrong');
+    }
+  });
+
+  const points = pointsForScore(correct);
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = "Saqlanmoqda...";
+
+  const resultRef = doc(db, "results", `${currentUser.uid}_${testId}`);
+  await setDoc(resultRef, {
+    uid: currentUser.uid,
+    testId,
+    testTitle: testData.title,
+    correct,
+    total,
+    points,
+    submittedAt: serverTimestamp()
+  });
+  await updateDoc(doc(db, "users", currentUser.uid), { totalPoints: increment(points) });
+
+  document.getElementById('submitArea').classList.add('hidden');
+  document.getElementById('resultArea').classList.remove('hidden');
+  document.getElementById('resultArea').innerHTML = `
+    <div class="panel center">
+      <h2>🎉 Test yakunlandi!</h2>
+      <p class="mt">To'g'ri javoblar: <b>${correct}/${total}</b></p>
+      <p>Siz olgan ball: <b>${points}</b></p>
+      <a href="dashboard.html" class="btn mt">Profilga qaytish</a>
+    </div>`;
+  window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+}
+</script>
+</body>
+</html>

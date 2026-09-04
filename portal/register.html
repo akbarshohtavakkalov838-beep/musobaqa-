@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ro'yxatdan o'tish – MockBaza</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="auth-box">
+  <h1>🎯 Ro'yxatdan o'tish</h1>
+  <p class="muted center mt" style="margin-bottom:16px">Odatda o'qituvchingiz sizga login va parolni o'zi beradi. Agar hali akkauntingiz bo'lmasa, shu yerdan oching.</p>
+  <div id="msg"></div>
+  <form id="registerForm">
+    <label>Ism</label>
+    <input type="text" id="name" required placeholder="Masalan: Abdulloh">
+    <label>Parol</label>
+    <input type="text" id="password" required minlength="6" placeholder="Kamida 6ta belgi">
+    <button type="submit" class="btn" style="width:100%">Ro'yxatdan o'tish</button>
+  </form>
+  <div class="switch">Akkaunt bormi? <a href="login.html">Kirish</a></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const msg = document.getElementById('msg');
+function showMsg(text, type) { msg.innerHTML = `<div class="msg ${type}">${text}</div>`; }
+
+function usernameToEmail(username) {
+  const clean = username.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return clean + "@mockbaza.local";
+}
+
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('name').value.trim();
+  const password = document.getElementById('password').value;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, usernameToEmail(name), password);
+    await updateProfile(cred.user, { displayName: name });
+    await setDoc(doc(db, "users", cred.user.uid), {
+      name, username: name, role: "student", totalPoints: 0, createdAt: serverTimestamp()
+    });
+    showMsg("Ro'yxatdan muvaffaqiyatli o'tdingiz! Yo'naltirilyapti...", "success");
+    setTimeout(() => window.location.href = "dashboard.html", 800);
+  } catch (err) {
+    showMsg(errUz(err.code), "error");
+  }
+});
+
+function errUz(code) {
+  const map = {
+    "auth/email-already-in-use": "Bu ism bilan akkaunt allaqachon mavjud.",
+    "auth/invalid-email": "Ism noto'g'ri kiritildi.",
+    "auth/weak-password": "Parol juda oddiy, kamida 6ta belgi kerak."
+  };
+  return map[code] || "Xatolik yuz berdi: " + code;
+}
+</script>
+</body>
+</html>
