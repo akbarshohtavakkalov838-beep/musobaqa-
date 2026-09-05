@@ -104,7 +104,7 @@ Abdulloh</textarea>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, updateProfile, signOut as signOutSecondary } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, updateProfile, inMemoryPersistence, setPersistence } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, onSnapshot, query, orderBy, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -268,17 +268,31 @@ function defaultPassword(name) {
   return name.trim() + "20";
 }
 
-// Bitta o'quvchini Firebase'da yaratadi (ikkinchi App orqali, admin sessiyasi uzilmaydi)
+// Bitta doimiy "ikkinchi ilova" - faqat xotirada (RAM) ishlaydi, IndexedDB'ga tegmaydi,
+// shuning uchun ketma-ket bir nechta hisob yaratganda qulflanib qolmaydi.
+let secondaryAuthPromise = null;
+async function getSecondaryAuth() {
+  if (!secondaryAuthPromise) {
+    secondaryAuthPromise = (async () => {
+      const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+      const secondaryAuth = getAuth(secondaryApp);
+      await setPersistence(secondaryAuth, inMemoryPersistence);
+      return secondaryAuth;
+    })();
+  }
+  return secondaryAuthPromise;
+}
+
+// Bitta o'quvchini Firebase'da yaratadi (ikkinchi, faqat-xotiradagi ulanish orqali, admin sessiyasi uzilmaydi)
 async function createStudentAccount(displayName, username, password) {
   const email = usernameToEmail(username);
-  const secondaryApp = initializeApp(firebaseConfig, "Secondary-" + Date.now() + Math.random());
-  const secondaryAuth = getAuth(secondaryApp);
+  const secondaryAuth = await getSecondaryAuth();
   const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
   await updateProfile(cred.user, { displayName });
   await setDoc(doc(db, "users", cred.user.uid), {
     name: displayName, username, role: "student", totalPoints: 0, createdAt: serverTimestamp()
   });
-  await signOutSecondary(secondaryAuth);
+  await secondaryAuth.signOut();
 }
 
 document.getElementById('sName').addEventListener('input', (e) => {
@@ -314,13 +328,17 @@ document.getElementById('bulkAddBtn').addEventListener('click', async () => {
   const raw = document.getElementById('bulkNames').value;
   const names = raw.split('\n').map(n => n.trim()).filter(Boolean);
   const msgBox = document.getElementById('bulkMsg');
+  const btn = document.getElementById('bulkAddBtn');
   if (names.length === 0) { msgBox.innerHTML = '<div class="msg error">Kamida bitta ism kiriting.</div>'; return; }
 
-  msgBox.innerHTML = '<div class="msg info">Qo\'shilmoqda, kuting...</div>';
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
   const usedInBatch = {};
-  const log = [];
+  msgBox.innerHTML = "";
 
-  for (const rawName of names) {
+  for (let i = 0; i < names.length; i++) {
+    const rawName = names[i];
+    btn.textContent = `Qo'shilmoqda... (${i + 1}/${names.length})`;
     let username = rawName;
     // Shu partiyada bir xil ism bo'lsa, avtomatik 2, 3... qo'shiladi (Abdulloh, Abdulloh2, ...)
     if (usedInBatch[rawName.toLowerCase()] !== undefined) {
@@ -332,16 +350,17 @@ document.getElementById('bulkAddBtn').addEventListener('click', async () => {
     const password = defaultPassword(username);
     try {
       await createStudentAccount(rawName, username, password);
-      log.push(`<div class="msg success">✅ <b>${username}</b> — parol: <b>${password}</b></div>`);
+      msgBox.insertAdjacentHTML('beforeend', `<div class="msg success">✅ <b>${username}</b> — parol: <b>${password}</b></div>`);
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
-        log.push(`<div class="msg error">⚠️ <b>${username}</b> — bu login allaqachon mavjud, o'tkazib yuborildi.</div>`);
+        msgBox.insertAdjacentHTML('beforeend', `<div class="msg error">⚠️ <b>${username}</b> — bu login allaqachon mavjud, o'tkazib yuborildi.</div>`);
       } else {
-        log.push(`<div class="msg error">❌ <b>${username}</b> — xatolik: ${err.message}</div>`);
+        msgBox.insertAdjacentHTML('beforeend', `<div class="msg error">❌ <b>${username}</b> — xatolik: ${err.message}</div>`);
       }
     }
   }
-  msgBox.innerHTML = log.join("");
+  btn.disabled = false;
+  btn.textContent = originalLabel;
 });
 
 // ================= TESTS LIST =================
